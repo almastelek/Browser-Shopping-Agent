@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "Agentic Shopper",
+  "version": "1.0.0",
+  "description": "Browser-based autonomous shopping assistant that finds, ranks, and compares deals with explainable scoring.",
+  
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "tabGroups"
+  ],
+  
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "https://*.ebay.com/*",
+    "https://*.newegg.com/*",
+    "<all_urls>"
+  ],
+  
+  "background": {
+    "service_worker": "background/service_worker.js",
+    "type": "module"
+  },
+  
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "shared/schema.js",
+        "shared/messaging.js",
+        "content/parsers/generic_product_page.js",
+        "content/parsers/generic_search_page.js",
+        "content/parsers/newegg_search_parser.js",
+        "content/highlight/highlighter.js",
+        "content/content_script.js"
+      ],
+      "css": ["content/highlight/highlight.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,194 @@
+/* ============================================================
+   Agentic Shopper - Element Highlighting Styles
+   Injected into product pages to highlight key info
+   ============================================================ */
+
+/* Highlight base styles */
+.agentic-highlight {
+    position: relative;
+    z-index: 9998;
+}
+
+.agentic-highlight::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Price highlight - green */
+.agentic-highlight--price {
+    outline: 3px solid #10b981 !important;
+    outline-offset: 4px;
+    border-radius: 4px;
+    background: rgba(16, 185, 129, 0.1) !important;
+}
+
+.agentic-highlight--price::before {
+    content: '💰 Price';
+    position: absolute;
+    top: -24px;
+    left: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    background: #10b981;
+    padding: 2px 8px;
+    border-radius: 4px;
+    z-index: 9999;
+}
+
+/* Shipping highlight - blue */
+.agentic-highlight--shipping {
+    outline: 3px solid #3b82f6 !important;
+    outline-offset: 4px;
+    border-radius: 4px;
+    background: rgba(59, 130, 246, 0.1) !important;
+}
+
+.agentic-highlight--shipping::before {
+    content: '📦 Shipping';
+    position: absolute;
+    top: -24px;
+    left: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    background: #3b82f6;
+    padding: 2px 8px;
+    border-radius: 4px;
+    z-index: 9999;
+}
+
+/* Returns highlight - purple */
+.agentic-highlight--returns {
+    outline: 3px solid #8b5cf6 !important;
+    outline-offset: 4px;
+    border-radius: 4px;
+    background: rgba(139, 92, 246, 0.1) !important;
+}
+
+.agentic-highlight--returns::before {
+    content: '↩️ Returns';
+    position: absolute;
+    top: -24px;
+    left: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    background: #8b5cf6;
+    padding: 2px 8px;
+    border-radius: 4px;
+    z-index: 9999;
+}
+
+/* ============================================================
+   Floating Overlay
+   ============================================================ */
+
+#agentic-shopper-overlay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 200px;
+    background: linear-gradient(135deg, rgba(15, 15, 26, 0.95) 0%, rgba(26, 26, 46, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 14px;
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: white;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.agentic-overlay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.agentic-overlay-logo {
+    font-size: 12px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.agentic-overlay-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.agentic-overlay-close:hover {
+    color: white;
+}
+
+.agentic-overlay-score {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.agentic-overlay-score .score-value {
+    font-size: 36px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.agentic-overlay-score .score-label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.agentic-overlay-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.agentic-overlay-bullets li {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    padding: 4px 0 4px 16px;
+    position: relative;
+    line-height: 1.4;
+}
+
+.agentic-overlay-bullets li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: #6366f1;
+}

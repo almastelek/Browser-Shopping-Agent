@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400, initial-scale=1.0">
+  <title>Agentic Shopper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🛒</span>
+        <h1>Agentic Shopper</h1>
+      </div>
+      <span class="version">v1.0</span>
+    </header>
+
+    <!-- Status Bar -->
+    <div id="status-bar" class="status-bar hidden">
+      <span class="status-icon">⏳</span>
+      <span id="status-text">Analyzing...</span>
+    </div>
+
+    <!-- Page Context Section -->
+    <section id="context-section" class="section">
+      <h2>📄 Current Page</h2>
+      <div id="page-context" class="context-box">
+        <p class="placeholder">Click "Analyze Page" to extract context</p>
+      </div>
+      <button id="analyze-btn" class="btn btn-secondary">
+        <span>🔍</span> Analyze Page
+      </button>
+    </section>
+
+    <!-- Search Query Section -->
+    <section class="section">
+      <h2>🔎 Search Query</h2>
+      <input type="text" id="query-input" class="input" placeholder="e.g., wireless noise-canceling headphones">
+    </section>
+
+    <!-- Preferences Section -->
+    <section class="section collapsible">
+      <h2 class="section-toggle" data-target="prefs-content">
+        ⚙️ Preferences <span class="toggle-icon">▼</span>
+      </h2>
+      <div id="prefs-content" class="section-content">
+        <!-- Budget -->
+        <div class="form-group">
+          <label for="budget-slider">Budget: $<span id="budget-value">250</span></label>
+          <input type="range" id="budget-slider" min="50" max="2000" step="25" value="250" class="slider">
+        </div>
+        
+        <!-- Condition -->
+        <div class="form-group">
+          <label>Condition</label>
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="cond-new" checked> New
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="cond-refurb" checked> Refurbished
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="cond-used"> Used
+            </label>
+          </div>
+        </div>
+        
+        <!-- Delivery Priority -->
+        <div class="form-group">
+          <label for="delivery-priority">Delivery Priority</label>
+          <select id="delivery-priority" class="select">
+            <option value="low">Low (flexible)</option>
+            <option value="med" selected>Medium</option>
+            <option value="high">High (ASAP)</option>
+          </select>
+        </div>
+        
+        <!-- Risk Tolerance -->
+        <div class="form-group">
+          <label for="risk-tolerance">Risk Tolerance</label>
+          <select id="risk-tolerance" class="select">
+            <option value="low">Low (safe picks only)</option>
+            <option value="med" selected>Medium</option>
+            <option value="high">High (accept more risk)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <section class="section actions">
+      <button id="find-deals-btn" class="btn btn-primary">
+        <span>🚀</span> Find Best Deals
+      </button>
+    </section>
+
+    <!-- Results Section -->
+    <section id="results-section" class="section hidden">
+      <h2>🏆 Top Results</h2>
+      <div id="results-container" class="results-container">
+        <!-- Results will be dynamically inserted here -->
+      </div>
+      <button id="compare-btn" class="btn btn-accent">
+        <span>📊</span> Compare Top 3 in Browser
+      </button>
+    </section>
+
+    <!-- Error Display -->
+    <div id="error-display" class="error-box hidden">
+      <span class="error-icon">⚠️</span>
+      <span id="error-message"></span>
+    </div>
+  </div>
+
+  <script src="../shared/schema.js"></script>
+  <script src="../shared/messaging.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
