@@ -115,8 +115,8 @@ async def analyze(context: PageContext):
     Returns a 'Smart Profile' for the product.
     """
     try:
-        # Use title and any keywords as context
-        text_to_analyze = f"Title: {context.title}\nKeywords: {context.keywords}"
+        # Use title, keywords, and PRICE as context
+        text_to_analyze = f"Title: {context.title}\nKeywords: {context.keywords}\nReference Price: ${context.price if context.price else 'Unknown'}"
         if context.url:
             text_to_analyze += f"\nURL: {context.url}"
             

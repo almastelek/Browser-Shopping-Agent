@@ -209,6 +209,7 @@ class RankRequest(BaseModel):
     decision_spec: DecisionSpec
     context: PageContext | None = None
     candidates: list[Listing]
+    use_llm_rerank: bool = False
 
 
 class RankResponse(BaseModel):
@@ -216,6 +217,7 @@ class RankResponse(BaseModel):
     ranked: list[RankedListing]
     total_candidates: int
     filtered_count: int = 0
+    llm_top_reason: str | None = None
 
 
 class SearchRequest(BaseModel):

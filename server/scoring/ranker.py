@@ -49,7 +49,42 @@ def rank_candidates(
     # Sort by total score (descending)
     scored.sort(key=lambda x: x.score_total, reverse=True)
     
-    return scored, filtered_count
+    # APPLY SOURCE DIVERSITY BOOST
+    # If top 3 are all from the same source, boost the next best from a different source
+    final_ranked = apply_source_diversity(scored)
+    
+    return final_ranked, filtered_count
+
+
+def apply_source_diversity(ranked: list[RankedListing]) -> list[RankedListing]:
+    """ Ensures top results aren't dominated by a single source if others are available. """
+    if len(ranked) < 2:
+        return ranked
+        
+    first_source = ranked[0].listing.source
+    
+    # If the first two items are from the same source, try to find a different source for #2
+    if ranked[1].listing.source == first_source:
+        for i in range(2, len(ranked)):
+            if ranked[i].listing.source != first_source:
+                # We found a different source. 
+                # If its score is reasonably close (e.g. > 0.6), move it up
+                if ranked[i].score_total > 0.4:
+                    diverse_item = ranked.pop(i)
+                    ranked.insert(1, diverse_item)
+                    break
+    
+    # If we still have only one source in top 2, try to find a third source for #3
+    sources_in_top2 = {r.listing.source for r in ranked[:2]}
+    if len(ranked) >= 3 and ranked[2].listing.source in sources_in_top2:
+        for i in range(3, len(ranked)):
+            if ranked[i].listing.source not in sources_in_top2:
+                if ranked[i].score_total > 0.3:
+                    diverse_item = ranked.pop(i)
+                    ranked.insert(2, diverse_item)
+                    break
+                    
+    return ranked
 
 
 def filter_candidates(
@@ -66,8 +101,12 @@ def filter_candidates(
     filtered = []
     
     for listing in candidates:
-        # Check condition
-        if listing.condition not in spec.condition_allowed:
+        # Check condition - Be lenient with 'unknown'
+        # Treat 'unknown' as 'new' for filtering purposes if 'new' is allowed
+        condition = listing.condition
+        if condition == "unknown" and "new" in spec.condition_allowed:
+            pass # Keep it
+        elif condition not in spec.condition_allowed:
             continue
         
         # Check banned keywords

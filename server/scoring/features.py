@@ -26,14 +26,22 @@ def score_price(listing: Listing, spec: DecisionSpec) -> float:
         overage_ratio = (price - budget) / budget
         return max(0, 0.3 - overage_ratio * 0.3)
     
-    # Under budget - less aggressive price curve
+    # Under budget - "Sweet Spot" logic
     ratio = price / budget
-    # Transform: 0-50% budget = 0.9-1.0, 50-100% budget = 0.7-0.9
-    if ratio < 0.5:
-        score = 1.0 - (ratio * 0.2)
-    else:
-        score = 0.9 - ((ratio - 0.5) * 0.4)
     
+    if ratio < 0.4:
+        # TOO CHEAP: Likely a lower tier or accessory. Penalize.
+        score = 0.3 + (ratio * 0.75) # 0.3 -> 0.6
+    elif ratio < 0.8:
+        # GOOD VALUE: 40% to 80% of budget.
+        score = 0.6 + (ratio - 0.4) * 0.75 # 0.6 -> 0.9
+    elif ratio <= 0.95:
+        # SWEET SPOT: 80% to 95% of budget. High quality, close to target tier.
+        score = 0.9 + (ratio - 0.8) * 0.66 # 0.9 -> 1.0
+    else:
+        # NEAR MAX: 95% to 100% of budget.
+        score = 1.0 - (ratio - 0.95) * 2.0 # 1.0 -> 0.9
+        
     return min(1.0, max(0.0, score))
 
 
@@ -88,43 +96,50 @@ def score_reliability(listing: Listing, spec: DecisionSpec) -> float:
     """
     Score based on seller rating and review count.
     
-    - Uses log transform for review count (diminishing returns)
-    - Official store bonus
-    - Adjusted based on risk_tolerance
+    CRITICAL: Enforces a 'Quality Floor'
     """
     seller = listing.seller
     
-    # Start with base score
-    base_score = 0.4  # Default for unknown
+    # Unknown seller is now suspicious by default for high-quality requests
+    base_score = 0.2
     
     if seller.rating is not None:
-        # Rating is assumed to be 0-100
+        # Rating is 0-100
         rating_score = seller.rating / 100
         
-        # Apply review count modifier (log scale)
+        # AGGRESSIVE QUALITY FLOOR: 
+        # Anything below 95% gets penalized heavily
+        if seller.rating < 90:
+            rating_score *= 0.3
+        elif seller.rating < 95:
+            rating_score *= 0.7
+            
+        # Review count modifier (log scale)
         if seller.reviews and seller.reviews > 0:
-            # More reviews = more confidence
-            # log10(10) = 1, log10(100) = 2, log10(1000) = 3
+            # log10(10)=1, log10(100)=2, log10(1000)=3, log10(10000)=4
+            # We want high confidence at 100+ reviews
             review_modifier = min(1.0, (math.log10(seller.reviews + 1) / 3))
             
-            # Blend rating with review confidence
+            # If reviews < 20, it's considered low confidence
+            if seller.reviews < 20:
+                review_modifier *= 0.5
+                
             base_score = rating_score * 0.7 + review_modifier * 0.3
         else:
-            # No reviews - just use rating but with less confidence
-            base_score = rating_score * 0.6 + 0.2
+            # No reviews - very low confidence
+            base_score = rating_score * 0.4
     
     # Official store bonus
     if seller.is_official:
-        base_score = min(1.0, base_score + 0.15)
+        base_score = min(1.0, base_score + 0.3) # Significant boost
     
     # Adjust based on risk tolerance
-    if spec.risk_tolerance == Priority.LOW:
-        # Low risk tolerance: penalize uncertain sellers more
-        if seller.rating is None or (seller.reviews and seller.reviews < 10):
-            base_score *= 0.7
-    elif spec.risk_tolerance == Priority.HIGH:
-        # High risk tolerance: more forgiving
-        base_score = max(base_score, 0.5)
+    if spec.risk_tolerance == Priority.HIGH:
+        # User wants 'High' quality/reliability (low risk tolerance IRL)
+        # Note: The extension mapping for risk_tolerance was confusing, 
+        # but User said they want high quality.
+        if base_score < 0.6:
+            base_score *= 0.5 # Crush low-quality items
     
     return min(1.0, max(0.0, base_score))
 
