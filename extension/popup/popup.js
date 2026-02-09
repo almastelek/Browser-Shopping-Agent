@@ -133,11 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
             brand_whitelist: [],
             brand_blacklist: [],
             weights: {
-                price: 0.25,
-                delivery: 0.20,
-                reliability: 0.25,
-                returns: 0.15,
-                spec_match: 0.15
+                price: 0.15,
+                delivery: 0.10,
+                reliability: 0.35,
+                returns: 0.10,
+                spec_match: 0.30
             }
         };
     }
@@ -162,9 +162,31 @@ document.addEventListener('DOMContentLoaded', () => {
             currentContext = response.context;
             displayContext(currentContext);
 
-            // Auto-fill query if we extracted keywords
-            if (currentContext.keywords && !queryInput.value) {
-                queryInput.value = currentContext.keywords;
+            // AUTO-UPGRADE TO SMART ANALYSIS
+            showStatus('Agent is identifying product details...');
+            const smartResponse = await chrome.runtime.sendMessage({
+                type: 'SMART_ANALYZE',
+                payload: { context: currentContext }
+            });
+
+            if (smartResponse && smartResponse.smart_data) {
+                const smart = smartResponse.smart_data;
+                // Auto-fill query with canonical name
+                if (smart.canonical_query) {
+                    queryInput.value = smart.canonical_query;
+                }
+                // Auto-fill budget
+                if (smart.budget_estimated) {
+                    budgetSlider.value = Math.min(2000, Math.max(10, Math.ceil(smart.budget_estimated * 1.2)));
+                    budgetValue.textContent = budgetSlider.value;
+                }
+
+                // Add quality visual cue
+                if (smart.is_high_quality_target) {
+                    showStatus('Target identified as high-quality product. Enabling quality filters.', 'success');
+                }
+
+                savePreferences();
             }
 
             hideStatus();
@@ -192,7 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'FIND_DEALS',
                 payload: {
                     decision_spec: decisionSpec,
-                    context: currentContext
+                    context: currentContext,
+                    use_llm_rerank: true // Always use smart re-ranking now
                 }
             });
 
@@ -201,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             rankedResults = response.ranked || [];
-            displayResults(rankedResults);
+            displayResults(rankedResults, response.llm_top_reason);
 
             hideStatus();
             resultsSection.classList.remove('hidden');
@@ -276,15 +299,27 @@ document.addEventListener('DOMContentLoaded', () => {
         pageContext.innerHTML = html;
     }
 
-    function displayResults(results) {
+    function displayResults(results, topReason = null) {
         if (!results || results.length === 0) {
             resultsContainer.innerHTML = '<p class="placeholder">No results found</p>';
             return;
         }
 
-        resultsContainer.innerHTML = results.slice(0, 5).map((result, index) =>
+        let html = '';
+        if (topReason) {
+            html += `
+                <div class="agent-reasoning">
+                    <div class="reasoning-title">🛒 Agent's Top Choice Reasoning</div>
+                    <div class="reasoning-text">${escapeHtml(topReason)}</div>
+                </div>
+            `;
+        }
+
+        html += results.slice(0, 5).map((result, index) =>
             createResultCard(result, index + 1)
         ).join('');
+
+        resultsContainer.innerHTML = html;
     }
 
     function createResultCard(result, rank) {
@@ -310,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         <div class="result-meta">
           <span class="result-price">$${priceValue.toFixed(2)}</span>
-          <span class="result-source">${source}</span>
+          <span class="result-source source-${source.replace(/_/g, '-')}">${source.replace(/_/g, ' ')}</span>
           <span class="result-condition">${condition}</span>
         </div>
         

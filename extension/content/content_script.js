@@ -30,6 +30,9 @@ async function handleMessage(message) {
         case 'INJECT_OVERLAY':
             return injectOverlay(payload);
 
+        case 'PING':
+            return { pong: true };
+
         default:
             throw new Error(`Unknown message type: ${type}`);
     }
@@ -104,6 +107,8 @@ function scrapeSearchResults(source) {
     // Source-specific scrapers
     if (source === 'newegg' && window.NeweggSearchParser) {
         listings = window.NeweggSearchParser.scrape();
+    } else if (source === 'google_shopping' && window.GoogleShoppingParser) {
+        listings = window.GoogleShoppingParser.scrape();
     } else if (window.GenericSearchParser) {
         // Generic fallback
         listings = window.GenericSearchParser.scrapeResults();

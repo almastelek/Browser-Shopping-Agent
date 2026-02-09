@@ -8,27 +8,27 @@
   --bg-secondary: #1a1a2e;
   --bg-tertiary: #252542;
   --bg-glass: rgba(30, 30, 60, 0.7);
-  
+
   --text-primary: #ffffff;
   --text-secondary: #a0a0c0;
   --text-muted: #6060a0;
-  
+
   --accent-primary: #6366f1;
   --accent-secondary: #8b5cf6;
   --accent-success: #10b981;
   --accent-warning: #f59e0b;
   --accent-danger: #ef4444;
-  
+
   --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   --gradient-accent: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
-  
+
   --border-color: rgba(255, 255, 255, 0.1);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3);
-  
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  
+
   --transition: all 0.2s ease;
 }
 
@@ -113,8 +113,15 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Sections */
@@ -167,7 +174,8 @@ body {
 }
 
 /* Form Elements */
-.input, .select {
+.input,
+.select {
   width: 100%;
   padding: 10px 14px;
   background: var(--bg-secondary);
@@ -178,7 +186,8 @@ body {
   transition: var(--transition);
 }
 
-.input:focus, .select:focus {
+.input:focus,
+.select:focus {
   outline: none;
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
@@ -325,6 +334,44 @@ body {
   margin-top: 20px;
 }
 
+/* Agent Reasoning */
+.agent-reasoning {
+  background: rgba(147, 51, 234, 0.1);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.5s ease;
+}
+
+.reasoning-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.reasoning-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  font-style: italic;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Results */
 .results-container {
   display: flex;
@@ -403,7 +450,30 @@ body {
 }
 
 .result-source {
-  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.source-ebay {
+  background: rgba(0, 100, 210, 0.2);
+  color: #4dabf7;
+  border: 1px solid rgba(0, 100, 210, 0.3);
+}
+
+.source-newegg {
+  background: rgba(255, 165, 0, 0.2);
+  color: #ffa500;
+  border: 1px solid rgba(255, 165, 0, 0.3);
+}
+
+.source-google-shopping {
+  background: rgba(52, 168, 83, 0.2);
+  color: #34a853;
+  border: 1px solid rgba(52, 168, 83, 0.3);
 }
 
 .result-condition {

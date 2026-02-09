@@ -159,6 +159,7 @@ const GenericProductParser = {
 
         // Title selectors
         const titleSelectors = [
+            'h1.x-item-title__mainTitle span.ux-textspans',
             'h1[itemprop="name"]',
             '[data-testid="product-title"]',
             '.product-title h1',
@@ -172,6 +173,7 @@ const GenericProductParser = {
 
         // Price selectors
         const priceSelectors = [
+            '.x-price-primary span.ux-textspans',
             '[itemprop="price"]',
             '[data-testid="product-price"]',
             '.product-price',

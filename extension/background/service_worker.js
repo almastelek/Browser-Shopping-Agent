@@ -6,6 +6,7 @@
 // Constants
 const SERVER_URL = 'http://127.0.0.1:8000';
 const NEWEGG_SEARCH_URL = 'https://www.newegg.com/p/pl?d=';
+const GOOGLE_SHOPPING_URL = 'https://www.google.com/search?tbm=shop&q=';
 
 // Agent State
 const agentState = {
@@ -51,6 +52,9 @@ async function handleMessage(message, sender) {
         case 'SAVE_PREFERENCES':
             return await savePreferences(payload);
 
+        case 'SMART_ANALYZE':
+            return await handleSmartAnalyze(payload);
+
         default:
             throw new Error(`Unknown message type: ${type}`);
     }
@@ -94,6 +98,25 @@ async function handleAnalyzePage() {
     }
 }
 
+async function handleSmartAnalyze(payload) {
+    try {
+        const response = await fetch(`${SERVER_URL}/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload.context)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Analysis server error: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('[Agent] Smart analysis error:', error);
+        throw error;
+    }
+}
+
 // ============================================================
 // Find Deals Handler (Main Agent Loop)
 // ============================================================
@@ -107,9 +130,16 @@ async function handleFindDeals(payload) {
 
     try {
         // Step 1: Gather candidates from multiple sources
-        console.log('[Agent] Step 1: Gathering candidates...');
+        console.log('[Agent] Step 1: Gathering candidates for query:', decision_spec.query);
         const candidates = await gatherCandidates(decision_spec.query);
         agentState.candidates = candidates;
+
+        console.log(`[Agent] Total candidates gathered: ${candidates.length}`);
+        const sourceCounts = candidates.reduce((acc, c) => {
+            acc[c.source] = (acc[c.source] || 0) + 1;
+            return acc;
+        }, {});
+        console.log('[Agent] Source breakdown:', sourceCounts);
 
         if (candidates.length === 0) {
             return {
@@ -120,11 +150,12 @@ async function handleFindDeals(payload) {
 
         // Step 2: Rank candidates via server
         console.log('[Agent] Step 2: Ranking candidates...');
-        const ranked = await rankCandidates(decision_spec, context, candidates);
-        agentState.ranked = ranked;
+        const rankedResponse = await rankCandidates(decision_spec, context, candidates, payload.use_llm_rerank);
+        agentState.ranked = rankedResponse.ranked;
 
         return {
-            ranked,
+            ranked: rankedResponse.ranked,
+            llm_top_reason: rankedResponse.llm_top_reason,
             total_candidates: candidates.length
         };
 
@@ -161,6 +192,16 @@ async function gatherCandidates(query) {
         console.error('[Agent] Newegg fetch failed:', error);
     }
 
+    // Source 3: Google Shopping (via content script scraping)
+    try {
+        console.log('[Agent] Fetching Google Shopping candidates...');
+        const googleResults = await fetchGoogleShoppingCandidates(query);
+        allCandidates.push(...googleResults);
+        console.log(`[Agent] Got ${googleResults.length} Google Shopping candidates`);
+    } catch (error) {
+        console.error('[Agent] Google Shopping fetch failed:', error);
+    }
+
     return allCandidates;
 }
 
@@ -185,44 +226,83 @@ async function fetchEbayCandidates(query) {
 }
 
 async function fetchNeweggCandidates(query) {
+    let tab = null;
     try {
-        // Open a background tab to Newegg search
         const searchUrl = NEWEGG_SEARCH_URL + encodeURIComponent(query);
+        tab = await chrome.tabs.create({ url: searchUrl, active: false });
 
-        const tab = await chrome.tabs.create({
-            url: searchUrl,
-            active: false
-        });
+        // Wait for page to be fully loaded and content scripts injected
+        await ensureTabLoaded(tab.id);
 
-        // Wait for page to load
-        await new Promise(resolve => setTimeout(resolve, 3000));
-
-        // Request scraping from content script
         const response = await chrome.tabs.sendMessage(tab.id, {
             type: 'SCRAPE_SEARCH_RESULTS',
             payload: { source: 'newegg' }
         });
 
-        // Close the tab
-        await chrome.tabs.remove(tab.id);
-
-        if (response.error) {
-            throw new Error(response.error);
-        }
-
-        return response.listings || [];
+        if (response?.error) throw new Error(response.error);
+        return response?.listings || [];
 
     } catch (error) {
         console.error('[Agent] Newegg scraping error:', error);
         return [];
+    } finally {
+        if (tab?.id) await chrome.tabs.remove(tab.id).catch(() => { });
     }
+}
+
+async function fetchGoogleShoppingCandidates(query) {
+    let tab = null;
+    try {
+        const searchUrl = GOOGLE_SHOPPING_URL + encodeURIComponent(query);
+        tab = await chrome.tabs.create({ url: searchUrl, active: false });
+
+        await ensureTabLoaded(tab.id);
+
+        const response = await chrome.tabs.sendMessage(tab.id, {
+            type: 'SCRAPE_SEARCH_RESULTS',
+            payload: { source: 'google_shopping' }
+        });
+
+        if (response?.error) throw new Error(response.error);
+        return response?.listings || [];
+    } catch (error) {
+        console.error('[Agent] Google Shopping scraping error:', error);
+        return [];
+    } finally {
+        if (tab?.id) await chrome.tabs.remove(tab.id).catch(() => { });
+    }
+}
+
+/**
+ * Ensures a tab is fully loaded and content scripts are responsive
+ */
+async function ensureTabLoaded(tabId, timeout = 15000) {
+    const start = Date.now();
+
+    // 1. Wait for tab status 'complete'
+    while (Date.now() - start < timeout) {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.status === 'complete') break;
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    // 2. Poll the tab with a ping until it responds (ensures content script is ready)
+    while (Date.now() - start < timeout) {
+        try {
+            await chrome.tabs.sendMessage(tabId, { type: 'PING' });
+            return; // Success
+        } catch (e) {
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+    throw new Error('Tab loading timed out or content script not responding');
 }
 
 // ============================================================
 // Ranking
 // ============================================================
 
-async function rankCandidates(decisionSpec, context, candidates) {
+async function rankCandidates(decisionSpec, context, candidates, useLlmRerank = false) {
     try {
         const response = await fetch(`${SERVER_URL}/rank`, {
             method: 'POST',
@@ -230,7 +310,8 @@ async function rankCandidates(decisionSpec, context, candidates) {
             body: JSON.stringify({
                 decision_spec: decisionSpec,
                 context: context,
-                candidates: candidates
+                candidates: candidates,
+                use_llm_rerank: useLlmRerank
             })
         });
 
@@ -239,7 +320,10 @@ async function rankCandidates(decisionSpec, context, candidates) {
         }
 
         const data = await response.json();
-        return data.ranked || [];
+        return {
+            ranked: data.ranked || [],
+            llm_top_reason: data.llm_top_reason
+        };
 
     } catch (error) {
         console.error('[Agent] Ranking error:', error);
@@ -354,13 +438,13 @@ chrome.runtime.onInstalled.addListener((details) => {
                     budget_max: 250,
                     condition_allowed: ['new', 'refurb'],
                     delivery_priority: 'med',
-                    risk_tolerance: 'med',
+                    risk_tolerance: 'high',
                     weights: {
-                        price: 0.25,
-                        delivery: 0.20,
-                        reliability: 0.25,
-                        returns: 0.15,
-                        spec_match: 0.15
+                        price: 0.15,
+                        delivery: 0.10,
+                        reliability: 0.35,
+                        returns: 0.10,
+                        spec_match: 0.30
                     }
                 }
             });

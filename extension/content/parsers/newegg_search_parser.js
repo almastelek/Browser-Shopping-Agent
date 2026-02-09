@@ -119,6 +119,12 @@ const NeweggSearchParser = {
             }
         }
 
+        // Seller
+        const sellerEl = el.querySelector('.item-sellers, .item-seller-name, [class*="seller"]');
+        if (sellerEl) {
+            listing.seller.name = sellerEl.textContent?.trim().replace(/^Sold by:\s*/i, '');
+        }
+
         // Brand - extract from title or look for brand element
         const brandEl = el.querySelector('.item-brand img, [class*="brand"]');
         if (brandEl) {
