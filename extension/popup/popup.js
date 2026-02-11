@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // State
     let currentContext = null;
     let rankedResults = [];
+    let searchMode = 'same'; // 'same' or 'alt'
 
     // Initialize
     init();
@@ -52,6 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Enter') {
                 handleFindDeals();
             }
+        });
+
+        // Search mode toggles
+        document.querySelectorAll('#search-mode-toggle .toggle-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                document.querySelectorAll('#search-mode-toggle .toggle-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                searchMode = btn.dataset.mode;
+                savePreferences();
+
+                // If we already have a context, re-trigger smart analysis to update the query
+                if (currentContext) {
+                    console.log('[Agent] Search mode changed, re-analyzing...');
+                    handleSmartAnalysisUpdate();
+                }
+            });
         });
 
         // Save preferences on change
@@ -101,6 +118,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (prefs.query) {
                     queryInput.value = prefs.query;
                 }
+
+                if (prefs.search_mode) {
+                    searchMode = prefs.search_mode;
+                    document.querySelectorAll('#search-mode-toggle .toggle-btn').forEach(btn => {
+                        if (btn.dataset.mode === searchMode) {
+                            btn.classList.add('active');
+                        } else {
+                            btn.classList.remove('active');
+                        }
+                    });
+                }
+
+                if (prefs.enabled_sources) {
+                    document.getElementById('source-ebay').checked = prefs.enabled_sources.includes('ebay');
+                }
             }
         } catch (error) {
             console.error('Error loading preferences:', error);
@@ -122,12 +154,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('cond-refurb').checked) conditions.push('refurb');
         if (document.getElementById('cond-used').checked) conditions.push('used');
 
+        const enabledSources = ['google_shopping', 'newegg'];
+        if (document.getElementById('source-ebay').checked) {
+            enabledSources.push('ebay');
+        }
+
         return {
             query: queryInput.value.trim(),
             budget_max: parseInt(budgetSlider.value, 10),
             condition_allowed: conditions,
             delivery_priority: document.getElementById('delivery-priority').value,
             risk_tolerance: document.getElementById('risk-tolerance').value,
+            enabled_sources: enabledSources,
+            search_mode: searchMode,
             required_keywords: [],
             banned_keywords: [],
             brand_whitelist: [],
@@ -162,11 +201,25 @@ document.addEventListener('DOMContentLoaded', () => {
             currentContext = response.context;
             displayContext(currentContext);
 
-            // AUTO-UPGRADE TO SMART ANALYSIS
-            showStatus('Agent is identifying product details...');
+            await handleSmartAnalysisUpdate();
+            hideStatus();
+        } catch (error) {
+            showError(error.message);
+            hideStatus();
+        }
+    }
+
+    async function handleSmartAnalysisUpdate() {
+        if (!currentContext) return;
+
+        showStatus('Agent is identifying product details...');
+        try {
             const smartResponse = await chrome.runtime.sendMessage({
                 type: 'SMART_ANALYZE',
-                payload: { context: currentContext }
+                payload: {
+                    context: currentContext,
+                    search_mode: searchMode
+                }
             });
 
             if (smartResponse && smartResponse.smart_data) {
@@ -176,23 +229,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     queryInput.value = smart.canonical_query;
                 }
                 // Auto-fill budget
-                if (smart.budget_estimated) {
-                    budgetSlider.value = Math.min(2000, Math.max(10, Math.ceil(smart.budget_estimated * 1.2)));
+                if (smart.identity?.reference_price) {
+                    budgetSlider.value = Math.min(2000, Math.max(10, Math.ceil(smart.identity.reference_price * 1.2)));
                     budgetValue.textContent = budgetSlider.value;
+                }
+
+                // Update context display with smart details
+                if (smart.identity) {
+                    currentContext.title = smart.identity.product_name || currentContext.title;
+                    currentContext.price = smart.identity.reference_price || currentContext.price;
+                    currentContext.type = smart.identity.category || 'product';
+                    displayContext(currentContext);
                 }
 
                 // Add quality visual cue
                 if (smart.is_high_quality_target) {
-                    showStatus('Target identified as high-quality product. Enabling quality filters.', 'success');
+                    showStatus('Target identified as high-quality product.', 'success');
+                    setTimeout(hideStatus, 2000);
                 }
 
                 savePreferences();
             }
-
-            hideStatus();
-        } catch (error) {
-            showError(error.message);
-            hideStatus();
+        } catch (e) {
+            console.error('[Agent] Smart analysis update failed:', e);
         }
     }
 
@@ -272,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
 
     function displayContext(context) {
-        if (!context || context.type === 'unknown') {
+        if (!context || (context.type === 'unknown' && !context.title)) {
             pageContext.innerHTML = '<p class="placeholder">Could not extract context from this page</p>';
             return;
         }
@@ -320,6 +379,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ).join('');
 
         resultsContainer.innerHTML = html;
+
+        // Add click listeners to links to open in new tab explicitly
+        resultsContainer.querySelectorAll('.result-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const url = link.dataset.url;
+                if (url) {
+                    chrome.tabs.create({ url: url });
+                }
+            });
+        });
     }
 
     function createResultCard(result, rank) {
@@ -340,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         
         <div class="result-title">
-          <a href="${escapeHtml(listing.url)}" target="_blank">${escapeHtml(listing.title)}</a>
+          <a href="${escapeHtml(listing.url)}" class="result-link" data-url="${escapeHtml(listing.url)}">${escapeHtml(listing.title)}</a>
         </div>
         
         <div class="result-meta">

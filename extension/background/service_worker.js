@@ -103,7 +103,10 @@ async function handleSmartAnalyze(payload) {
         const response = await fetch(`${SERVER_URL}/analyze`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload.context)
+            body: JSON.stringify({
+                context: payload.context,
+                search_mode: payload.search_mode || 'same'
+            })
         });
 
         if (!response.ok) {
@@ -131,7 +134,7 @@ async function handleFindDeals(payload) {
     try {
         // Step 1: Gather candidates from multiple sources
         console.log('[Agent] Step 1: Gathering candidates for query:', decision_spec.query);
-        const candidates = await gatherCandidates(decision_spec.query);
+        const candidates = await gatherCandidates(decision_spec.query, decision_spec.enabled_sources);
         agentState.candidates = candidates;
 
         console.log(`[Agent] Total candidates gathered: ${candidates.length}`);
@@ -169,37 +172,43 @@ async function handleFindDeals(payload) {
 // Candidate Gathering
 // ============================================================
 
-async function gatherCandidates(query) {
+async function gatherCandidates(query, enabledSources = ['ebay', 'newegg', 'google_shopping']) {
     const allCandidates = [];
 
-    // Source 1: eBay API (via server)
-    try {
-        console.log('[Agent] Fetching eBay candidates...');
-        const ebayResults = await fetchEbayCandidates(query);
-        allCandidates.push(...ebayResults);
-        console.log(`[Agent] Got ${ebayResults.length} eBay candidates`);
-    } catch (error) {
-        console.error('[Agent] eBay fetch failed:', error);
+    // Source 1: eBay API
+    if (enabledSources.includes('ebay')) {
+        try {
+            console.log('[Agent] Fetching eBay candidates...');
+            const ebayResults = await fetchEbayCandidates(query);
+            allCandidates.push(...ebayResults);
+            console.log(`[Agent] Got ${ebayResults.length} eBay candidates`);
+        } catch (error) {
+            console.error('[Agent] eBay fetch failed:', error);
+        }
     }
 
-    // Source 2: Newegg (via content script scraping)
-    try {
-        console.log('[Agent] Fetching Newegg candidates...');
-        const neweggResults = await fetchNeweggCandidates(query);
-        allCandidates.push(...neweggResults);
-        console.log(`[Agent] Got ${neweggResults.length} Newegg candidates`);
-    } catch (error) {
-        console.error('[Agent] Newegg fetch failed:', error);
+    // Source 2: Newegg
+    if (enabledSources.includes('newegg')) {
+        try {
+            console.log('[Agent] Fetching Newegg candidates...');
+            const neweggResults = await fetchNeweggCandidates(query);
+            allCandidates.push(...neweggResults);
+            console.log(`[Agent] Got ${neweggResults.length} Newegg candidates`);
+        } catch (error) {
+            console.error('[Agent] Newegg fetch failed:', error);
+        }
     }
 
-    // Source 3: Google Shopping (via content script scraping)
-    try {
-        console.log('[Agent] Fetching Google Shopping candidates...');
-        const googleResults = await fetchGoogleShoppingCandidates(query);
-        allCandidates.push(...googleResults);
-        console.log(`[Agent] Got ${googleResults.length} Google Shopping candidates`);
-    } catch (error) {
-        console.error('[Agent] Google Shopping fetch failed:', error);
+    // Source 3: Google Shopping
+    if (enabledSources.includes('google_shopping')) {
+        try {
+            console.log('[Agent] Fetching Google Shopping candidates...');
+            const googleResults = await fetchGoogleShoppingCandidates(query);
+            allCandidates.push(...googleResults);
+            console.log(`[Agent] Got ${googleResults.length} Google Shopping candidates`);
+        } catch (error) {
+            console.error('[Agent] Google Shopping fetch failed:', error);
+        }
     }
 
     return allCandidates;
@@ -357,26 +366,42 @@ async function handleCompareTop3(payload) {
     // Create tabs for each result
     for (const result of top3) {
         const listing = result.listing || result;
-        const url = listing.url;
+        let url = listing.url;
 
         if (!url) continue;
 
-        const tab = await chrome.tabs.create({
-            url: url,
-            active: false
-        });
-        tabIds.push(tab.id);
+        // Ensure absolute URL
+        if (!url.startsWith('http')) {
+            console.warn('[Agent] Skipping non-absolute URL:', url);
+            continue;
+        }
+
+        try {
+            const tab = await chrome.tabs.create({
+                url: url,
+                active: false
+            });
+            tabIds.push(tab.id);
+        } catch (e) {
+            console.error('[Agent] Failed to create tab for URL:', url, e);
+        }
     }
 
-    // Group tabs together
+    // Group tabs together (if supported and possible)
     if (tabIds.length > 0) {
         try {
-            const groupId = await chrome.tabs.group({ tabIds });
-            await chrome.tabGroups.update(groupId, {
-                title: 'Agentic Shopper',
-                color: 'purple',
-                collapsed: false
-            });
+            if (chrome.tabs.group) {
+                const groupId = await chrome.tabs.group({ tabIds });
+                if (chrome.tabGroups) {
+                    await chrome.tabGroups.update(groupId, {
+                        title: 'Agentic Shopper',
+                        color: 'purple',
+                        collapsed: false
+                    });
+                }
+            } else {
+                console.log('[Agent] Tab grouping not supported by browser.');
+            }
 
             // Wait for pages to load then inject highlights
             setTimeout(async () => {

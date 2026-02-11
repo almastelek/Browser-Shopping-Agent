@@ -138,6 +138,94 @@ body {
   margin-bottom: 8px;
 }
 
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.section-header-row h2 {
+  margin-bottom: 0;
+}
+
+/* Source Toggles */
+.source-toggles {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.source-toggle-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.source-toggle-item:hover:not([disabled]) {
+  border-color: var(--accent-primary);
+}
+
+.source-toggle-item input {
+  display: none;
+}
+
+.source-toggle-item.eb-toggle:has(input:checked) {
+  border-color: #4dabf7;
+  background: rgba(0, 100, 210, 0.1);
+  color: #4dabf7;
+}
+
+.source-toggle-item.ng-toggle:has(input:checked) {
+  border-color: #ffa500;
+  background: rgba(255, 165, 0, 0.1);
+}
+
+.source-toggle-item.gs-toggle:has(input:checked) {
+  border-color: #34a853;
+  background: rgba(52, 168, 83, 0.1);
+}
+
+.source-toggle-item[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Toggle Group for Search Mode */
+.toggle-group {
+  display: flex;
+  background: var(--bg-tertiary);
+  padding: 2px;
+  border-radius: var(--radius-md);
+}
+
+.toggle-btn {
+  padding: 4px 10px;
+  border-radius: calc(var(--radius-md) - 2px);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.toggle-btn.active {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 /* Context Box */
 .context-box {
   padding: 12px;

@@ -69,10 +69,21 @@ const GoogleShoppingParser = {
         const sellerEl = el.querySelector('.WJMUdc, .rw5ecc, .n7emVc, .WJMUdc, .aULzUe, .I96P7c');
         listing.seller.name = sellerEl?.innerText?.trim() || null;
 
-        // URL
-        const linkEl = el.querySelector('a') || el.closest('a');
-        if (linkEl) {
-            listing.url = linkEl.href;
+        // URL - Be more specific to avoid help links
+        const allLinks = Array.from(el.querySelectorAll('a'));
+        const productLink = allLinks.find(a =>
+            a.href &&
+            !a.href.includes('support.google.com') &&
+            !a.href.includes('google.com/googleshopping/answer') &&
+            (a.href.includes('/shopping/product/') || a.href.includes('/url?url=') || a.querySelector('h3'))
+        );
+
+        if (productLink) {
+            listing.url = productLink.href;
+        } else if (allLinks.length > 0) {
+            // Fallback to first non-support link
+            const fallback = allLinks.find(a => !a.href.includes('support.google.com'));
+            if (fallback) listing.url = fallback.href;
         }
 
         // Sponsored check

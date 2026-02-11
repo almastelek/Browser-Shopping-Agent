@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=400, initial-scale=1.0">
   <title>Agentic Shopper</title>
   <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
   <div class="container">
     <!-- Header -->
@@ -36,8 +38,33 @@
 
     <!-- Search Query Section -->
     <section class="section">
-      <h2>🔎 Search Query</h2>
+      <div class="section-header-row">
+        <h2>🔎 Search Query</h2>
+        <div class="toggle-group" id="search-mode-toggle">
+          <button class="toggle-btn active" data-mode="same">Same Product</button>
+          <button class="toggle-btn" data-mode="alt">Alternatives</button>
+        </div>
+      </div>
       <input type="text" id="query-input" class="input" placeholder="e.g., wireless noise-canceling headphones">
+    </section>
+
+    <!-- Source Controls Section -->
+    <section class="section source-controls">
+      <h2>🌐 Sources</h2>
+      <div class="source-toggles">
+        <label class="source-toggle-item eb-toggle">
+          <input type="checkbox" id="source-ebay" checked>
+          <span class="source-label">eBay</span>
+        </label>
+        <label class="source-toggle-item ng-toggle">
+          <input type="checkbox" id="source-newegg" checked disabled>
+          <span class="source-label">Newegg</span>
+        </label>
+        <label class="source-toggle-item gs-toggle">
+          <input type="checkbox" id="source-google" checked disabled>
+          <span class="source-label">Google</span>
+        </label>
+      </div>
     </section>
 
     <!-- Preferences Section -->
@@ -51,7 +78,7 @@
           <label for="budget-slider">Budget: $<span id="budget-value">250</span></label>
           <input type="range" id="budget-slider" min="50" max="2000" step="25" value="250" class="slider">
         </div>
-        
+
         <!-- Condition -->
         <div class="form-group">
           <label>Condition</label>
@@ -67,7 +94,7 @@
             </label>
           </div>
         </div>
-        
+
         <!-- Delivery Priority -->
         <div class="form-group">
           <label for="delivery-priority">Delivery Priority</label>
@@ -77,7 +104,7 @@
             <option value="high">High (ASAP)</option>
           </select>
         </div>
-        
+
         <!-- Risk Tolerance -->
         <div class="form-group">
           <label for="risk-tolerance">Risk Tolerance</label>
@@ -119,4 +146,5 @@
   <script src="../shared/messaging.js"></script>
   <script src="popup.js"></script>
 </body>
+
 </html>
