@@ -155,6 +155,8 @@ class DecisionSpec(BaseModel):
     )
     delivery_priority: Priority = Priority.MED
     risk_tolerance: Priority = Priority.MED
+    enabled_sources: list[str] = Field(default_factory=lambda: ["ebay", "newegg", "google_shopping"])
+    search_mode: str = "same" # "same" or "alt"
     required_keywords: list[str] = Field(default_factory=list)
     banned_keywords: list[str] = Field(default_factory=list)
     brand_whitelist: list[str] = Field(default_factory=list)
@@ -202,6 +204,38 @@ class PageContext(BaseModel):
     price: float | None = None
     keywords: str | None = None
     timestamp: str | None = None
+
+
+class ProductIdentity(BaseModel):
+    """Canonical identity of the product being researched."""
+    brand: str | None = None
+    model: str | None = None
+    product_name: str
+    reference_price: float | None = None
+    key_terms: list[str] = Field(default_factory=list)
+    category: str | None = None
+
+
+class AnalysisResult(BaseModel):
+    """Result of LLM product context analysis."""
+    identity: ProductIdentity
+    decision_patch: dict[str, Any] = Field(default_factory=dict)
+    is_high_quality_target: bool = False
+    canonical_query: str
+
+
+class RerankNote(BaseModel):
+    """A note from the LLM about a specific listing."""
+    index: int
+    flags: list[str] = Field(default_factory=list) # e.g. ["accessory_risk", "wrong_model"]
+    comment: str
+
+
+class RerankResult(BaseModel):
+    """Result of LLM qualitative reranking."""
+    ordered_indices: list[int]
+    top_reason: str
+    notes: list[RerankNote] = Field(default_factory=list)
 
 
 class RankRequest(BaseModel):
