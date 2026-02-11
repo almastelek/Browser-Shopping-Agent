@@ -10,11 +10,12 @@ from storage.models import (
 def generate_explanations(
     listing: Listing,
     spec: DecisionSpec,
-    breakdown: ScoreBreakdown
+    breakdown: ScoreBreakdown,
+    is_specific: bool = False
 ) -> list[ExplanationBullet]:
     """
     Generate 2-3 explanation bullets for a listing.
-    Focuses on strongest positive and negative factors.
+     Focuses on quality signals and match accuracy.
     """
     bullets = []
     
@@ -158,18 +159,35 @@ def generate_explanations(
             "text": "Return policy unclear"
         })
     
-    # Spec match factor
+    # Spec match and Quality Risk factors
     if breakdown.spec_match >= 0.8:
         factors.append({
             "score": breakdown.spec_match,
             "type": "positive",
-            "text": "Strong match for your search"
+            "text": "Excellent match for your search"
         })
-    elif breakdown.spec_match < 0.4:
+    elif breakdown.spec_match < 0.5:
         factors.append({
             "score": breakdown.spec_match,
             "type": "negative",
-            "text": "Partial match for your search"
+            "text": "Weak match (different model or accessory?)"
+        })
+        
+    # Accessory Risk (Specific check)
+    accessory_terms = ["case", "cover", "protector", "strap", "band", "replacement", "parts"]
+    if any(t in listing.title.lower() for t in accessory_terms):
+        factors.append({
+            "score": 0.1,
+            "type": "negative",
+            "text": "Accessory alert: Looks like a case or part"
+        })
+    
+    # Price Outlier check
+    if listing.price.value > 0 and listing.price.value < spec.budget_max * 0.35:
+        factors.append({
+            "score": 0.2,
+            "type": "negative",
+            "text": "Price outlier: Suspiciously cheap for this category"
         })
     
     # Custom Quality Explanation

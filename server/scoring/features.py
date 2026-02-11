@@ -189,7 +189,7 @@ def score_spec_match(listing: Listing, spec: DecisionSpec) -> float:
     - Brand whitelist/blacklist bonuses
     - Model match bonus
     """
-    score = 0.5  # Base score
+    score = 0.1  # Reduce base score to 0.1 (No free points)
     
     title_lower = listing.title.lower()
     key_terms = [t.lower() for t in listing.specs.key_terms]
@@ -197,13 +197,15 @@ def score_spec_match(listing: Listing, spec: DecisionSpec) -> float:
     
     # Check banned keywords first
     for banned in spec.banned_keywords:
-        if banned.lower() in title_lower or banned.lower() in key_terms:
+        b_lower = banned.lower()
+        if b_lower in title_lower or any(b_lower in kt for kt in key_terms):
             return 0.0  # Instant disqualification
     
-    # Required keywords
+    # Required keywords - Check title and specs
     for required in spec.required_keywords:
-        if required.lower() in title_lower:
-            score += 0.2
+        r_lower = required.lower()
+        if r_lower in title_lower or any(r_lower in kt for kt in key_terms):
+            score += 0.25
     
     # Brand whitelist
     for whitelist_brand in spec.brand_whitelist:
@@ -218,21 +220,21 @@ def score_spec_match(listing: Listing, spec: DecisionSpec) -> float:
             break
     
     # Query term matching
+    # Query term matching with stopword filtering
     if spec.query:
-        query_terms = spec.query.lower().split()
-        matches = sum(1 for term in query_terms if term in title_lower)
-        match_ratio = matches / len(query_terms) if query_terms else 0
-        score += match_ratio * 0.4
-
-        # Quality-specific signal boost
-        quality_terms = ['high quality', 'premium', 'official', 'pro', 'authentic']
-        query_contains_quality = any(q in spec.query.lower() for q in quality_terms)
-        if query_contains_quality:
-            # Boost if listing title also contains quality terms
-            if any(q in title_lower for q in quality_terms):
+        stopwords = {'the', 'a', 'an', 'and', 'or', 'for', 'with', 'to', 'in', 'on', 'at', 'by', 'of', 'is'}
+        raw_terms = spec.query.lower().split()
+        query_terms = [t for t in raw_terms if len(t) >= 3 and t not in stopwords]
+        
+        if query_terms:
+            matches = sum(1 for term in query_terms if term in title_lower or any(term in kt for kt in key_terms))
+            match_ratio = matches / len(query_terms)
+            score += match_ratio * 0.5
+    
+        # Quality-specific signal boost (Tier alignment)
+        quality_terms = ['high quality', 'premium', 'official', 'pro', 'authentic', 'genuine']
+        if any(q in spec.query.lower() for q in quality_terms):
+            if any(q in title_lower for q in quality_terms) or listing.seller.is_official:
                 score += 0.2
-            # Boost if official store
-            if listing.seller.is_official:
-                score += 0.1
     
     return min(1.0, max(0.0, score))

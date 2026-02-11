@@ -1,10 +1,17 @@
-"""
-Main ranking logic for Agentic Shopper.
-Combines feature scores with weights to produce final rankings.
-"""
 from storage.models import (
-    Listing, DecisionSpec, RankedListing, ScoreBreakdown, PageContext
+    Listing, DecisionSpec, RankedListing, ScoreBreakdown, PageContext,
+    Condition
 )
+import re
+import statistics
+
+# Terms that often indicate an accessory rather than the main product
+ACCESSORY_TERMS = [
+    "case", "cover", "protector", "strap", "band", "replacement", 
+    "parts", "box only", "empty box", "manual", "compatible", 
+    "fits", "charger", "cable", "adapter", "refill", "cartridge",
+    "pouch", "sleeve", "mount", "stand", "battery"
+]
 from .features import (
     score_price,
     score_delivery,
@@ -13,7 +20,6 @@ from .features import (
     score_spec_match
 )
 from .explain import generate_explanations
-
 
 def rank_candidates(
     candidates: list[Listing],
@@ -29,15 +35,50 @@ def rank_candidates(
     # Normalize weights
     weights = spec.weights.normalized()
     
-    # Filter candidates
-    filtered, filtered_count = filter_candidates(candidates, spec)
+    # 1. Detect query specificity
+    is_specific = is_specific_query(spec.query)
     
-    # Score each candidate
+    # 2. Filter candidates
+    filtered, filtered_count = filter_candidates(candidates, spec, is_specific)
+    
+    # 3. Compute Median Price for outlier detection (Exclude garbage matches first)
+    decent_matches = [c for c in filtered if compute_score_breakdown(c, spec).spec_match > 0.4]
+    median_price = compute_median_price(decent_matches)
+    
+    # 4. Score each candidate
     scored = []
     for listing in filtered:
         breakdown = compute_score_breakdown(listing, spec)
+        
+        # 5. Apply Match Quality Gating
         total = compute_total_score(breakdown, weights)
-        explanations = generate_explanations(listing, spec, breakdown)
+        
+        # SEARCH MODE ADJUSTMENTS
+        search_mode = spec.search_mode if hasattr(spec, 'search_mode') else 'same'
+        
+        # Accessory Risk Penalty
+        if is_accessory(listing.title) and not is_accessory(spec.query):
+            total *= 0.3
+            breakdown.spec_match *= 0.1
+            
+        # Match Quality Gate
+        if is_specific:
+            threshold = 0.55 if search_mode == 'same' else 0.45
+            if breakdown.spec_match < threshold:
+                total *= 0.50
+        else:
+            threshold = 0.70 if search_mode == 'same' else 0.60
+            if breakdown.spec_match < threshold:
+                total *= 0.35
+                
+        # Price Outlier Penalty (Too cheap to be real product)
+        outlier_threshold = 0.35 if search_mode == 'same' else 0.25
+        if median_price and listing.price.value < (outlier_threshold * median_price):
+            if breakdown.spec_match < 0.85:
+                # Unless it's a near-perfect match, penalize suspiciously cheap items
+                total *= 0.7
+        
+        explanations = generate_explanations(listing, spec, breakdown, is_specific)
         
         scored.append(RankedListing(
             listing=listing,
@@ -46,14 +87,52 @@ def rank_candidates(
             explanation_bullets=explanations
         ))
     
-    # Sort by total score (descending)
-    scored.sort(key=lambda x: x.score_total, reverse=True)
+    # 6. QUALITY-FIRST SORTING: (Match Bucket, Total Score)
+    scored.sort(
+        key=lambda x: (get_match_bucket(x.score_breakdown.spec_match), x.score_total), 
+        reverse=True
+    )
     
-    # APPLY SOURCE DIVERSITY BOOST
-    # If top 3 are all from the same source, boost the next best from a different source
+    # 7. APPLY SOURCE DIVERSITY BOOST
     final_ranked = apply_source_diversity(scored)
     
     return final_ranked, filtered_count
+
+
+def is_specific_query(query: str) -> bool:
+    """Detects if query is a specific model/brand query vs broad category."""
+    tokens = re.findall(r'\w+', query.lower())
+    meaningful_tokens = [t for t in tokens if len(t) > 2]
+    
+    if len(meaningful_tokens) >= 5:
+        return True
+        
+    # Check for model-like tokens (alphanumeric mixtures)
+    for token in tokens:
+        if any(c.isdigit() for c in token) and any(c.isalpha() for c in token):
+            return True
+            
+    return False
+
+
+def get_match_bucket(spec_match: float) -> int:
+    """Buckets for quality-first sorting."""
+    if spec_match >= 0.80: return 3
+    if spec_match >= 0.65: return 2
+    if spec_match >= 0.50: return 1
+    return 0
+
+
+def compute_median_price(candidates: list[Listing]) -> float | None:
+    prices = [c.price.value for c in candidates if c.price.value > 0]
+    if not prices:
+        return None
+    return statistics.median(prices)
+
+
+def is_accessory(text: str) -> bool:
+    text_lower = text.lower()
+    return any(term in text_lower for term in ACCESSORY_TERMS)
 
 
 def apply_source_diversity(ranked: list[RankedListing]) -> list[RankedListing]:
@@ -67,9 +146,8 @@ def apply_source_diversity(ranked: list[RankedListing]) -> list[RankedListing]:
     if ranked[1].listing.source == first_source:
         for i in range(2, len(ranked)):
             if ranked[i].listing.source != first_source:
-                # We found a different source. 
-                # If its score is reasonably close (e.g. > 0.6), move it up
-                if ranked[i].score_total > 0.4:
+                # Diversity Guard: Only promote if match is solid
+                if ranked[i].score_breakdown.spec_match > 0.60:
                     diverse_item = ranked.pop(i)
                     ranked.insert(1, diverse_item)
                     break
@@ -79,7 +157,7 @@ def apply_source_diversity(ranked: list[RankedListing]) -> list[RankedListing]:
     if len(ranked) >= 3 and ranked[2].listing.source in sources_in_top2:
         for i in range(3, len(ranked)):
             if ranked[i].listing.source not in sources_in_top2:
-                if ranked[i].score_total > 0.3:
+                if ranked[i].score_breakdown.spec_match > 0.50:
                     diverse_item = ranked.pop(i)
                     ranked.insert(2, diverse_item)
                     break
@@ -89,26 +167,30 @@ def apply_source_diversity(ranked: list[RankedListing]) -> list[RankedListing]:
 
 def filter_candidates(
     candidates: list[Listing],
-    spec: DecisionSpec
+    spec: DecisionSpec,
+    is_specific: bool = False
 ) -> tuple[list[Listing], int]:
     """
     Apply hard filters to remove ineligible candidates.
-    
-    Returns:
-        Tuple of (filtered list, count removed)
     """
     original_count = len(candidates)
     filtered = []
     
+    query_is_acc = is_accessory(spec.query)
+    
     for listing in candidates:
-        # Check condition - Be lenient with 'unknown'
-        # Treat 'unknown' as 'new' for filtering purposes if 'new' is allowed
+        # 1. FIX CONDITION FILTER BUG
         condition = listing.condition
-        if condition == "unknown" and "new" in spec.condition_allowed:
+        if condition == Condition.UNKNOWN and Condition.NEW in spec.condition_allowed:
             pass # Keep it
         elif condition not in spec.condition_allowed:
             continue
         
+        # 2. ACCESSORY FILTER (Broad Queries Only)
+        if not is_specific and not query_is_acc:
+            if is_accessory(listing.title):
+                continue
+
         # Check banned keywords
         title_lower = listing.title.lower()
         banned = False
